@@ -1,6 +1,10 @@
 package controllers
 
 import (
+	"bytes"
+        "io"
+        "net/http"
+
 	"g8ink/models"
 	"g8ink/tools"
 	"strconv"
@@ -38,8 +42,29 @@ func (c *MainController) Home() {
 	// 判断是否为链接是就跳转
 	if len(url.OriginalUrl) > 7 && (url.OriginalUrl[0:7] == "http://" || url.OriginalUrl[0:8] == "https://") {
 		// 跳转
-		c.Redirect(url.OriginalUrl, 301)
-		return
+		//c.Redirect(url.OriginalUrl, 301)
+		//return
+		
+		resp, err := http.Get(url.OriginalUrl)
+                if err != nil {
+                        // 处理错误
+                        c.Ctx.Output.Body([]byte("Error: " + err.Error()))
+                        return
+                }
+                defer resp.Body.Close()
+
+                // 将代理处理后的响应内容写入 bytes.Buffer 中
+                buf := new(bytes.Buffer)
+                _, err = io.Copy(buf, resp.Body)
+                if err != nil {
+                        // 处理错误
+                        c.Ctx.Output.Body([]byte("Error: " + err.Error()))
+                        return
+                }
+
+                // 将 bytes.Buffer 中的内容作为响应内容发送给前端
+                c.Ctx.Output.Body(buf.Bytes())
+                return
 	}
 	// 如果原url内容为空则跳转首页
 	if url.OriginalUrl == "" {
@@ -111,6 +136,7 @@ func (c *MainController) Generate() {
 		if tools.Codeexist(shortcode) {
 			re["Code"] = -1
 			re["Message"] = "该短链接已存在"
+			re["Shorturl"] = tools.HOST + "/" + shortcode
 			c.ServeJSON()
 			return
 		}
